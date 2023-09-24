@@ -21,6 +21,15 @@ func (storage *Storage) Set(key string, value any) {
 	storage.data[key] = value
 }
 
+func (storage *Storage) Get(key string) (any, bool) {
+	storage.RLock()
+	defer storage.RUnlock()
+
+	val, ok := storage.data[key]
+
+	return val, ok
+}
+
 var storage = Storage{
 	data: make(map[string]any, 1024),
 }
@@ -58,12 +67,19 @@ func handleRequest(conn net.Conn) {
 			if len(packet.Key) > 0 {
 				response += " " + packet.Key
 			}
-			break
+		case protocol.CMD_GET:
+			val, ok := storage.Get(packet.Key)
+			if ok {
+				if _, tok := val.(string); tok {
+					response += val.(string)
+				}
+			} else {
+				response += "-"
+			}
 		case protocol.CMD_SET:
 			storage.Set(packet.Key, packet.Value)
 			fmt.Println(storage.data)
 			response = "OK"
-			break
 		default:
 			response = fmt.Sprintf("Invalid command %d", packet.Command)
 		}
