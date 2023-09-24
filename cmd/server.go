@@ -7,9 +7,23 @@ import (
 	"log"
 	"net"
 	"strconv"
+	"sync"
 )
 
-var storage map[string]any = make(map[string]any, 1024)
+type Storage struct {
+	sync.RWMutex
+	data map[string]any
+}
+
+func (storage *Storage) Set(key string, value any) {
+	storage.Lock()
+	defer storage.Unlock()
+	storage.data[key] = value
+}
+
+var storage = Storage{
+	data: make(map[string]any, 1024),
+}
 
 func handleRequest(conn net.Conn) {
 	var buffer = make([]byte, 1024*16) // Packet size = 16MB, hardcoded by default yet
@@ -46,8 +60,8 @@ func handleRequest(conn net.Conn) {
 			}
 			break
 		case protocol.CMD_SET:
-			storage[packet.Key] = packet.Value
-			fmt.Println(storage)
+			storage.Set(packet.Key, packet.Value)
+			fmt.Println(storage.data)
 			response = "OK"
 			break
 		default:
