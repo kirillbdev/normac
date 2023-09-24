@@ -1,7 +1,7 @@
 package main
 
-import "fmt"
+import "github.com/kirillbdev/normac/cmd"
 
 func main() {
-	fmt.Println("Works")
+	cmd.Run(6392)
 }
