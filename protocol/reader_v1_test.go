@@ -13,7 +13,7 @@ const (
 
 func TestReadPingCommand(t *testing.T) {
 	buf := []byte{0x1, 0x1}
-	reader := NewV1Reader()
+	reader := NewReaderV1()
 	packet, _ := reader.Read(bytes.NewReader(buf))
 
 	assert.Equal(t, Command(CMD_PING), packet.Command)
@@ -23,7 +23,7 @@ func TestReadPingWithMessageCommand(t *testing.T) {
 	msg := []byte("Hello world\r\n")
 	buf := append([]byte{0x1}, msg...)
 
-	reader := NewV1Reader()
+	reader := NewReaderV1()
 	packet, _ := reader.Read(bytes.NewReader(buf))
 
 	assert.Equal(t, Command(CMD_PING), packet.Command)
@@ -34,7 +34,7 @@ func TestGetCommand(t *testing.T) {
 	msg := []byte("some_key\r\n")
 	buf := append([]byte{0x2}, msg...)
 
-	reader := NewV1Reader()
+	reader := NewReaderV1()
 	packet, _ := reader.Read(bytes.NewReader(buf))
 
 	assert.Equal(t, Command(CMD_GET), packet.Command)
@@ -49,7 +49,7 @@ func TestSetCommandWithIntValue(t *testing.T) {
 	buf = append(buf, 0x1)
 	buf = append(buf, val...)
 
-	reader := NewV1Reader()
+	reader := NewReaderV1()
 	packet, _ := reader.Read(bytes.NewReader(buf))
 
 	assert.Equal(t, Command(CMD_SET), packet.Command)
@@ -65,7 +65,7 @@ func TestSetCommandWithStringValue(t *testing.T) {
 	buf = append(buf, 0x3)
 	buf = append(buf, val...)
 
-	reader := NewV1Reader()
+	reader := NewReaderV1()
 	packet, _ := reader.Read(bytes.NewReader(buf))
 
 	assert.Equal(t, Command(CMD_SET), packet.Command)

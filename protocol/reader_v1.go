@@ -7,14 +7,14 @@ import (
 	"strconv"
 )
 
-type V1Reader struct {
+type ReaderV1 struct {
 }
 
-func NewV1Reader() *V1Reader {
-	return &V1Reader{}
+func NewReaderV1() *ReaderV1 {
+	return &ReaderV1{}
 }
 
-func (decoder *V1Reader) Read(reader *bytes.Reader) (*Packet, error) {
+func (decoder *ReaderV1) Read(reader *bytes.Reader) (*Packet, error) {
 	packet := NewEmptyV1Packet()
 
 	// Step 1: read first byte - command
@@ -80,7 +80,7 @@ func (decoder *V1Reader) Read(reader *bytes.Reader) (*Packet, error) {
 	return packet, nil
 }
 
-func (decoder *V1Reader) readInt(reader *bytes.Reader) (int64, bool) {
+func (decoder *ReaderV1) readInt(reader *bytes.Reader) (int64, bool) {
 	var res int64
 
 	err := binary.Read(reader, binary.LittleEndian, &res)
@@ -91,7 +91,7 @@ func (decoder *V1Reader) readInt(reader *bytes.Reader) (int64, bool) {
 	return res, true
 }
 
-func (decoder *V1Reader) readString(reader *bytes.Reader) (string, bool) {
+func (decoder *ReaderV1) readString(reader *bytes.Reader) (string, bool) {
 	result := ""
 	foundEnd := false
 

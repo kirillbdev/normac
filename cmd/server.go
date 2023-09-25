@@ -54,38 +54,55 @@ func handleRequest(conn net.Conn) {
 		return
 	}
 
-	var response string
+	var response protocol.Response
 
-	protoReader := protocol.NewV1Reader()
+	protoReader := protocol.NewReaderV1()
 	packet, err := protoReader.Read(reader)
 	if err != nil {
-		response = "[ERROR] " + err.Error()
+		response = protocol.Response{
+			ResponseType: protocol.RESPONSE_ERR,
+			ErrorMessage: err.Error(),
+		}
 	} else {
 		switch packet.Command {
 		case protocol.CMD_PING:
-			response = "PONG"
+			response = protocol.Response{
+				ResponseType: protocol.RESPONSE_OK,
+				Value:        "PONG",
+			}
+
 			if len(packet.Key) > 0 {
-				response += " " + packet.Key
+				response.Value = response.Value.(string) + " " + packet.Key
 			}
 		case protocol.CMD_GET:
 			val, ok := storage.Get(packet.Key)
 			if ok {
-				if _, tok := val.(string); tok {
-					response += val.(string)
+				response = protocol.Response{
+					ResponseType: protocol.RESPONSE_OK,
+					Value:        val,
 				}
 			} else {
-				response += "-"
+				response = protocol.Response{
+					ResponseType: protocol.RESPONSE_ERR,
+					ErrorMessage: "Key not found",
+				}
 			}
 		case protocol.CMD_SET:
 			storage.Set(packet.Key, packet.Value)
-			fmt.Println(storage.data)
-			response = "OK"
+			response = protocol.Response{
+				ResponseType: protocol.RESPONSE_OK,
+				Value:        packet.Value,
+			}
 		default:
-			response = fmt.Sprintf("Invalid command %d", packet.Command)
+			response = protocol.Response{
+				ResponseType: protocol.RESPONSE_ERR,
+				ErrorMessage: fmt.Sprintf("Invalid command %d", packet.Command),
+			}
 		}
 	}
 
-	conn.Write([]byte(response + "\r\n"))
+	w := protocol.WriterV1{}
+	conn.Write(w.Write(&response))
 	conn.Close()
 }
 
