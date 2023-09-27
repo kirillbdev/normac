@@ -25,7 +25,7 @@ func (decoder *ReaderV1) Read(reader *bytes.Reader) (*Packet, error) {
 
 	cmd := int(b)
 	switch cmd {
-	case CMD_PING, CMD_SET, CMD_GET:
+	case CMD_PING, CMD_SET, CMD_GET, CMD_DEBUG:
 		packet.Command = Command(cmd)
 	default:
 		return nil, errors.New("Undefined command " + strconv.Itoa(cmd))
@@ -57,13 +57,20 @@ func (decoder *ReaderV1) Read(reader *bytes.Reader) (*Packet, error) {
 		}
 
 		switch int(tp) {
-		case 1: // INT
+		case 1: // Unsigned int
 			val, ok := decoder.readInt(reader)
 			if !ok {
 				return nil, errors.New("Expected value type (int)")
 			}
 
 			packet.Value = val
+		case 2: // Signed int
+			val, ok := decoder.readInt(reader)
+			if !ok {
+				return nil, errors.New("Expected value type (int)")
+			}
+
+			packet.Value = val * -1
 		case 3: // STRING
 			val, ok := decoder.readString(reader)
 			if !ok {
@@ -71,6 +78,8 @@ func (decoder *ReaderV1) Read(reader *bytes.Reader) (*Packet, error) {
 			}
 
 			packet.Value = val
+		case 4, 5: // Positive/negative float
+			return nil, errors.New("Type support not implemented yet")
 		default:
 			return nil, errors.New("Incorect value type")
 		}
@@ -83,7 +92,7 @@ func (decoder *ReaderV1) Read(reader *bytes.Reader) (*Packet, error) {
 func (decoder *ReaderV1) readInt(reader *bytes.Reader) (int64, bool) {
 	var res int64
 
-	err := binary.Read(reader, binary.LittleEndian, &res)
+	err := binary.Read(reader, binary.BigEndian, &res)
 	if err != nil {
 		return 0, false
 	}

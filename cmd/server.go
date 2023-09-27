@@ -2,108 +2,99 @@ package cmd
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"github.com/kirillbdev/normac/protocol"
+	"github.com/kirillbdev/normac/storage"
 	"log"
 	"net"
 	"strconv"
-	"sync"
 )
 
-type Storage struct {
-	sync.RWMutex
-	data map[string]any
+const (
+	PROTOCOL_VERSION_1 = 0x1
+)
+
+type Session struct {
+	conn   net.Conn
+	writer protocol.Writer
 }
 
-func (storage *Storage) Set(key string, value any) {
-	storage.Lock()
-	defer storage.Unlock()
-	storage.data[key] = value
-}
+func (s *Session) Read() (*bytes.Reader, error) {
+	var buffer = make([]byte, 1024*2) // Packet size = 2MB, hardcoded by default yet
 
-func (storage *Storage) Get(key string) (any, bool) {
-	storage.RLock()
-	defer storage.RUnlock()
-
-	val, ok := storage.data[key]
-
-	return val, ok
-}
-
-var storage = Storage{
-	data: make(map[string]any, 1024),
-}
-
-func handleRequest(conn net.Conn) {
-	var buffer = make([]byte, 1024*16) // Packet size = 16MB, hardcoded by default yet
-	_, err := conn.Read(buffer)
+	_, err := s.conn.Read(buffer)
 	if err != nil {
-		log.Fatal(err)
+		return nil, err
 	}
 
-	// Step 1: read first byte - protocol version
-	reader := bytes.NewReader(buffer)
-	v, err := reader.ReadByte()
+	return bytes.NewReader(buffer), nil
+}
+
+func (s *Session) Send(response *protocol.Response) {
+	s.conn.Write(s.writer.Write(response))
+	s.conn.Close()
+}
+
+func getProtoReader(r *bytes.Reader) (protocol.Reader, error) {
+	v, err := r.ReadByte()
 	if err != nil {
-		log.Fatal(err)
+		return nil, err
 	}
 
-	if v != 0x1 {
-		conn.Write([]byte("Invalid protocol version" + "\r\n"))
-		conn.Close()
+	switch v {
+	case PROTOCOL_VERSION_1:
+		return protocol.NewReaderV1(), nil
+	default:
+		return nil, errors.New("Undefined protocol version")
+	}
+}
+
+func handleRequest(session *Session, storage *storage.Storage) {
+	reader, err := session.Read()
+	if err != nil {
+		session.Send(protocol.NewErrorResponse("[CONN_ERR] " + err.Error()))
 		return
 	}
 
-	var response protocol.Response
-
-	protoReader := protocol.NewReaderV1()
-	packet, err := protoReader.Read(reader)
+	protoReader, err := getProtoReader(reader)
 	if err != nil {
-		response = protocol.Response{
-			ResponseType: protocol.RESPONSE_ERR,
-			ErrorMessage: err.Error(),
-		}
-	} else {
-		switch packet.Command {
-		case protocol.CMD_PING:
-			response = protocol.Response{
-				ResponseType: protocol.RESPONSE_OK,
-				Value:        "PONG",
-			}
-
-			if len(packet.Key) > 0 {
-				response.Value = response.Value.(string) + " " + packet.Key
-			}
-		case protocol.CMD_GET:
-			val, ok := storage.Get(packet.Key)
-			if ok {
-				response = protocol.Response{
-					ResponseType: protocol.RESPONSE_OK,
-					Value:        val,
-				}
-			} else {
-				response = protocol.Response{
-					ResponseType: protocol.RESPONSE_ERR,
-					ErrorMessage: "Key not found",
-				}
-			}
-		case protocol.CMD_SET:
-			storage.Set(packet.Key, packet.Value)
-			response = protocol.Response{
-				ResponseType: protocol.RESPONSE_OK,
-				Value:        packet.Value,
-			}
-		default:
-			response = protocol.Response{
-				ResponseType: protocol.RESPONSE_ERR,
-				ErrorMessage: fmt.Sprintf("Invalid command %d", packet.Command),
-			}
-		}
+		session.Send(protocol.NewErrorResponse("[REQ_ERR] " + err.Error()))
+		return
 	}
 
-	w := protocol.WriterV1{}
-	conn.Write(w.Write(&response))
-	conn.Close()
+	var response *protocol.Response
+
+	packet, err := protoReader.Read(reader)
+	if err != nil {
+		session.Send(protocol.NewErrorResponse(err.Error()))
+		return
+	}
+
+	switch packet.Command {
+	case protocol.CMD_PING:
+		response = protocol.NewOkResponse("PONG")
+		if len(packet.PingMessage) > 0 {
+			response.Value = response.Value.(string) + " " + packet.PingMessage
+		}
+	case protocol.CMD_GET:
+		val, ok := storage.Get(packet.Key)
+		if ok {
+			response = protocol.NewOkResponse(val)
+		} else {
+			response = protocol.NewErrorResponse("Key not found")
+		}
+	case protocol.CMD_SET:
+		storage.Set(packet.Key, packet.Value)
+		response = protocol.NewOkResponse(packet.Value)
+	case protocol.CMD_DEBUG:
+		fmt.Println(storage.Data())
+		response = protocol.NewOkResponse("OK")
+	default:
+		response = protocol.NewErrorResponse("Invalid command")
+	}
+
+	session.Send(response)
 }
 
 func Run(port int) {
@@ -113,12 +104,21 @@ func Run(port int) {
 	}
 	defer listen.Close()
 
+	// Hardcoded initialize yet
+	strg := storage.NewStorage(1000)
+	w := protocol.WriterV1{}
+
 	for {
 		conn, err := listen.Accept()
 		if err != nil {
 			log.Fatal(err)
 		}
 
-		go handleRequest(conn)
+		session := Session{
+			conn:   conn,
+			writer: &w,
+		}
+
+		go handleRequest(&session, strg)
 	}
 }

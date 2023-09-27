@@ -8,7 +8,9 @@ import (
 )
 
 const (
-	BYTE_CMD_SET = 0x3
+	BYTE_CMD_SET           = 0x3
+	TEST_TYPE_POSITIVE_INT = 1
+	TEST_TYPE_NEGATIVE_INT = 2
 )
 
 func TestReadPingCommand(t *testing.T) {
@@ -41,12 +43,12 @@ func TestGetCommand(t *testing.T) {
 	assert.Equal(t, "some_key", packet.Key)
 }
 
-func TestSetCommandWithIntValue(t *testing.T) {
+func TestSetCommandWithUnsignedIntValue(t *testing.T) {
 	key := []byte("some_key\r\n")
 	val := make([]byte, 8)
-	binary.LittleEndian.PutUint64(val, 1992)
+	binary.BigEndian.PutUint64(val, 1992)
 	buf := append([]byte{BYTE_CMD_SET}, key...)
-	buf = append(buf, 0x1)
+	buf = append(buf, []byte{TEST_TYPE_POSITIVE_INT}...)
 	buf = append(buf, val...)
 
 	reader := NewReaderV1()
@@ -56,6 +58,23 @@ func TestSetCommandWithIntValue(t *testing.T) {
 	assert.Equal(t, "some_key", packet.Key)
 	assert.IsType(t, int64(1), packet.Value)
 	assert.Equal(t, int64(1992), packet.Value)
+}
+
+func TestSetCommandWithSignedIntValue(t *testing.T) {
+	key := []byte("some_key\r\n")
+	val := make([]byte, 8)
+	binary.BigEndian.PutUint64(val, 1992)
+	buf := append([]byte{BYTE_CMD_SET}, key...)
+	buf = append(buf, []byte{TEST_TYPE_NEGATIVE_INT}...)
+	buf = append(buf, val...)
+
+	reader := NewReaderV1()
+	packet, _ := reader.Read(bytes.NewReader(buf))
+
+	assert.Equal(t, Command(CMD_SET), packet.Command)
+	assert.Equal(t, "some_key", packet.Key)
+	assert.IsType(t, int64(1), packet.Value)
+	assert.Equal(t, int64(-1992), packet.Value)
 }
 
 func TestSetCommandWithStringValue(t *testing.T) {

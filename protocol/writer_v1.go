@@ -1,13 +1,21 @@
 package protocol
 
-import "encoding/binary"
+import (
+	"encoding/binary"
+)
 
 type WriterV1 struct {
 }
 
 func (w *WriterV1) Write(response *Response) []byte {
-	buf := make([]byte, 1024)
-	buf = w.writeInt(buf, int64(response.ResponseType))
+	var buf []byte
+
+	switch response.ResponseType {
+	case RESPONSE_OK:
+		buf = w.writeByte(buf, 0x0)
+	case RESPONSE_ERR:
+		buf = w.writeByte(buf, 0xA)
+	}
 
 	if response.ResponseType == RESPONSE_ERR {
 		buf = w.writeString(buf, response.ErrorMessage)
@@ -23,11 +31,12 @@ func (w *WriterV1) Write(response *Response) []byte {
 	return buf
 }
 
-func (w *WriterV1) writeInt(buf []byte, val int64) []byte {
-	intBUf := make([]byte, 8)
-	binary.LittleEndian.PutUint64(intBUf, uint64(val))
+func (w *WriterV1) writeByte(buf []byte, val byte) []byte {
+	return append(buf, val)
+}
 
-	return append(buf, intBUf...)
+func (w *WriterV1) writeInt(buf []byte, val int64) []byte {
+	return binary.BigEndian.AppendUint64(buf, uint64(val))
 }
 
 func (w *WriterV1) writeString(buf []byte, val string) []byte {
