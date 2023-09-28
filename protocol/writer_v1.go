@@ -22,8 +22,14 @@ func (w *WriterV1) Write(response *Response) []byte {
 	} else {
 		switch response.Value.(type) {
 		case int64:
+			if response.Value.(int64) >= 0 {
+				buf = w.writeByte(buf, 0x1)
+			} else {
+				buf = w.writeByte(buf, 0x2)
+			}
 			buf = w.writeInt(buf, response.Value.(int64))
 		case string:
+			buf = w.writeByte(buf, 0x3)
 			buf = w.writeString(buf, response.Value.(string))
 		}
 	}
@@ -36,7 +42,7 @@ func (w *WriterV1) writeByte(buf []byte, val byte) []byte {
 }
 
 func (w *WriterV1) writeInt(buf []byte, val int64) []byte {
-	return binary.BigEndian.AppendUint64(buf, uint64(val))
+	return binary.LittleEndian.AppendUint64(buf, uint64(val))
 }
 
 func (w *WriterV1) writeString(buf []byte, val string) []byte {
