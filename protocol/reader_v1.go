@@ -92,7 +92,7 @@ func (decoder *ReaderV1) Read(reader *bytes.Reader) (*Packet, error) {
 func (decoder *ReaderV1) readInt(reader *bytes.Reader) (int64, bool) {
 	var res int64
 
-	err := binary.Read(reader, binary.BigEndian, &res)
+	err := binary.Read(reader, binary.LittleEndian, &res)
 	if err != nil {
 		return 0, false
 	}
@@ -105,7 +105,7 @@ func (decoder *ReaderV1) readString(reader *bytes.Reader) (string, bool) {
 	foundEnd := false
 
 	for {
-		b, err := reader.ReadByte()
+		b, _, err := reader.ReadRune()
 		if err != nil {
 			return "", false
 		}

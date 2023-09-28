@@ -98,7 +98,7 @@ func handleRequest(session *Session, storage *storage.Storage) {
 }
 
 func Run(port int) {
-	listen, err := net.Listen("tcp", "localhost:"+strconv.Itoa(port))
+	listen, err := net.Listen("tcp", ":"+strconv.Itoa(port))
 	if err != nil {
 		log.Fatal(err)
 	}
